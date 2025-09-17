@@ -3,15 +3,17 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [ master ]
-  pull_request:
-    branches: [ master ]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout repository
+    - name: Checkout
       uses: actions/checkout@v4
     
     - name: Setup Node.js
@@ -20,50 +22,26 @@ jobs:
         node-version: '20'
         cache: 'npm'
     
-    - name: Install dependencies
+    - name: Install and Build
       run: |
-        if [ -f package.json ]; then
-          npm ci
-        else
-          echo "No package.json found, skipping npm install"
-        fi
+        npm ci
+        npm run build
+        
+        # Add robots.txt to dist
+        echo "User-agent: AdsBot-Google" > dist/robots.txt
+        echo "Disallow: /" >> dist/robots.txt
+        
+        echo "Verifying robots.txt:"
+        cat dist/robots.txt
+        
+        echo "All files in dist:"
+        find dist -type f | head -10
     
-    - name: Build project
-      run: |
-        if [ -f package.json ] && [ ! -z "$(npm run | grep build)" ]; then
-          npm run build
-          
-          # Ensure robots.txt exists in dist
-          if [ -f public/robots.txt ]; then
-            cp public/robots.txt dist/robots.txt
-            echo "✓ Copied robots.txt from public/ to dist/"
-          elif [ -f robots.txt ]; then
-            cp robots.txt dist/robots.txt
-            echo "✓ Copied robots.txt from root to dist/"
-          else
-            echo "User-agent: AdsBot-Google" > dist/robots.txt
-            echo "Disallow: /" >> dist/robots.txt
-            echo "✓ Created robots.txt in dist/"
-          fi
-          
-          echo "Final verification:"
-          ls -la dist/robots.txt
-          cat dist/robots.txt
-          
-        else
-          echo "No build script found, using files as-is"
-          mkdir -p dist
-          cp -r * dist/ 2>/dev/null || true
-          # Ensure robots.txt is in the right place
-          if [ -f robots.txt ]; then
-            cp robots.txt dist/robots.txt
-          fi
-        fi
+    - name: Upload to GitHub Pages
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: dist
     
     - name: Deploy to GitHub Pages
-      uses: peaceiris/actions-gh-pages@v3
-      if: github.ref == 'refs/heads/master'
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./dist
-        cname: lavaangdental.in
+      uses: actions/deploy-pages@v4
+      id: deployment
