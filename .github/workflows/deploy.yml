@@ -17,7 +17,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: '20'
         cache: 'npm'
     
     - name: Install dependencies
@@ -32,12 +32,32 @@ jobs:
       run: |
         if [ -f package.json ] && [ ! -z "$(npm run | grep build)" ]; then
           npm run build
+          
+          # Ensure robots.txt exists in dist
+          if [ -f public/robots.txt ]; then
+            cp public/robots.txt dist/robots.txt
+            echo "✓ Copied robots.txt from public/ to dist/"
+          elif [ -f robots.txt ]; then
+            cp robots.txt dist/robots.txt
+            echo "✓ Copied robots.txt from root to dist/"
+          else
+            echo "User-agent: AdsBot-Google" > dist/robots.txt
+            echo "Disallow: /" >> dist/robots.txt
+            echo "✓ Created robots.txt in dist/"
+          fi
+          
+          echo "Final verification:"
+          ls -la dist/robots.txt
+          cat dist/robots.txt
+          
         else
           echo "No build script found, using files as-is"
           mkdir -p dist
           cp -r * dist/ 2>/dev/null || true
           # Ensure robots.txt is in the right place
-          cp robots.txt dist/ 2>/dev/null || true
+          if [ -f robots.txt ]; then
+            cp robots.txt dist/robots.txt
+          fi
         fi
     
     - name: Deploy to GitHub Pages
@@ -46,5 +66,4 @@ jobs:
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: ./dist
-        # Custom domain (optional)
         cname: lavaangdental.in
